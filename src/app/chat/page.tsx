@@ -1,10 +1,9 @@
 "use client";
 
-import { SubmitHandler, useForm } from "react-hook-form";
 import { account, databases } from "../api";
 import { IoMdSend } from "react-icons/io";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createRef, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Query } from "appwrite";
 import { getTimeFromTimestamp } from "@components/utils";
 
@@ -13,12 +12,6 @@ type messageForm = {
 };
 
 const Chat: React.FC = () => {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<messageForm>();
-  const router = useRouter();
   const [roomMessages, setRoomMessages] = useState<any[]>([]);
   const params = useSearchParams();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -28,20 +21,22 @@ const Chat: React.FC = () => {
   const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID ?? "";
   const roomId: String | undefined = Array.isArray(room) ? room[0] : room;
 
-  async function getAllMessagesForRoom(roomId: String) {
-    const { documents, total } = await databases.listDocuments(
-      dbId,
-      collectionId,
-      [Query.equal("room", [`${roomId}`]), Query.orderDesc("$createdAt")]
-    );
-    setRoomMessages(documents);
-  }
+  const getAllMessagesForRoom = useCallback(
+    async (roomId: String) => {
+      const { documents } = await databases.listDocuments(dbId, collectionId, [
+        Query.equal("room", [`${roomId}`]),
+        Query.orderDesc("$createdAt"),
+      ]);
+      setRoomMessages(documents);
+    },
+    [dbId, collectionId]
+  );
 
   useEffect(() => {
     if (roomId) {
       getAllMessagesForRoom(roomId);
     }
-  }, [roomId]);
+  }, [getAllMessagesForRoom, roomId]);
 
   useEffect(() => {
     const scrollableDiv = document.getElementById("scrollableDiv");
@@ -52,7 +47,8 @@ const Chat: React.FC = () => {
     }
   }, [roomMessages]);
 
-  const onSubmit: SubmitHandler<messageForm> = async (data) => {
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     const message = inputRef.current?.value;
     if (message && message.trim()) {
       // make api request
@@ -107,16 +103,16 @@ const Chat: React.FC = () => {
           </div>
           <form
             className=" w-[95%] flex gap-2 bottom-[6px] absolute  "
-            onSubmit={handleSubmit(onSubmit)}
+            onSubmit={onSubmit}
           >
             <div className="flex grow">
               <input
+                name="message"
                 type="text"
                 autoComplete="off"
                 id="room"
                 placeholder="Send Message"
                 className="flex grow text-sm p-2 border border-secondaryTight rounded focus:outline-none focus:border-secondaryTighter"
-                {...register("message")}
                 ref={inputRef}
               />
             </div>
