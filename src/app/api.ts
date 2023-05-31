@@ -2,7 +2,7 @@
 
 import { Client, Account, Databases } from "appwrite";
 
-const client = new Client()
+export const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_API_ENDPOINT) // Your API Endpoint
   .setProject(process.env.NEXT_PUBLIC_PROJECT_NAME); // Your project ID
 
