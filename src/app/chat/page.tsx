@@ -1,6 +1,6 @@
 "use client";
 
-import { account, databases } from "../api";
+import { account, client, databases } from "../api";
 import { IoMdSend } from "react-icons/io";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -36,13 +36,33 @@ const Chat: React.FC = () => {
     if (roomId) {
       getAllMessagesForRoom(roomId);
     }
-  }, [getAllMessagesForRoom, roomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = client.subscribe(
+      [
+        `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID}.documents`,
+      ],
+      (data) => {
+        if (
+          data.events.includes(
+            `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID}.documents.*.create`
+          )
+        )
+          setRoomMessages((messages) => [data.payload, ...messages]);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const scrollableDiv = document.getElementById("scrollableDiv");
     if (scrollableDiv) {
       const height = scrollableDiv?.scrollHeight;
-      console.log(height);
       scrollableDiv.scrollTop = height;
     }
   }, [roomMessages]);
@@ -53,7 +73,6 @@ const Chat: React.FC = () => {
     if (message && message.trim()) {
       // make api request
       const session = await account.get();
-      console.log({ session });
       const documentsInserted = await databases.createDocument(
         dbId,
         collectionId,
@@ -71,24 +90,24 @@ const Chat: React.FC = () => {
 
   return (
     <div className="flex justify-center flex-col gap-8 items-center h-screen bg-primary  py-1 ">
-      <div className=" flex flex-col h-full min-w-[350px]  relative px-2 bg-slate-200 rounded max-w-[600px] ">
-        <div className=" flex items-center h-[8vh] justify-between  ">
+      <div className=" flex flex-col h-full min-w-[350px]  relative  bg-slate-200 rounded max-w-[600px] ">
+        <div className=" flex items-center h-[8vh] justify-between px-2 bg-primaryLight  ">
           <h2 className=" text-xl text-secondaryTighter  ">
             {" "}
             Let&apos;s chat{" "}
           </h2>
           <button className=" text-sm text-[#a5b6f5]">Leave Room</button>
         </div>
-        <div className="flex flex-col h-[84vh] gap-1">
+        <div className="flex flex-col h-[83vh] gap-1 px-2 mt-1.5">
           <div
             className=" text-secondary flex flex-col-reverse gap-2  overflow-y-scroll scrollbar-hide   "
             id="scrollableDiv"
           >
-            {roomMessages.map(({ name, id, message, $createdAt }) => {
+            {roomMessages.map(({ name, message, $createdAt, $id }) => {
               return (
                 <div
-                  key={id}
-                  className="flex flex-col w-fit max-w-[256px]  relative rounded-md p-2 pb-4  bg-white "
+                  key={$id}
+                  className="flex flex-col w-fit max-w-[256px]  gap-[2px] relative rounded-md px-2 pt-1.5 pb-4  bg-white "
                 >
                   <p className=" text-secondaryTighter text-xs ">{name}</p>
                   <p className="text-secondaryTightest text-sm break-words">
