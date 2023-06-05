@@ -3,6 +3,7 @@ import React from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { account } from "../api";
 import { useRouter } from "next/navigation";
+import InputField from "@components/components/InputField";
 
 type LoginFormInputs = {
   name: string;
@@ -31,43 +32,29 @@ const LoginForm: React.FC = () => {
         <h2 className=" text-2xl  font-bold -mt-4 mb-4">Enter Chat Room</h2>
         {/* {process.env.NEXT_PUBLIC_API_ENDPOINT} */}
         <form className="w-full" onSubmit={handleSubmit(onSubmit)}>
-          <div className="mb-5 relative">
-            <label className="block mb-1" htmlFor="name">
-              Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              placeholder="Enter Name"
-              className="w-full py-2 px-2 border border-secondaryTight rounded focus:outline-none focus:border-secondaryTighter"
-              {...register("name", { required: true })}
-            />
-            {errors.name && (
-              <span className=" -bottom-5 left-0 text-xs absolute text-red-500">
-                Name is required
-              </span>
-            )}
-          </div>
-          <div className="mb-5 relative">
-            <label className="block mb-1" htmlFor="room">
-              Room
-            </label>
-            <input
-              type="text"
-              id="room"
-              placeholder="Enter Room Name"
-              className="w-full py-2 px-2 border border-secondaryTight rounded focus:outline-none focus:border-secondaryTighter"
-              {...register("room", { required: true })}
-            />
-            {errors.room && (
-              <span className=" absolute -bottom-5 left-0 text-sm text-red-500">
-                Room is required
-              </span>
-            )}
-          </div>
+          <InputField
+            label="Name"
+            id="name"
+            placeholder="Enter Name"
+            register={register("name", { required: true })}
+            error={errors.name ? "Name is Required!" : ""}
+          />
+          <InputField
+            label="Group Name"
+            id="room"
+            placeholder="Enter Group Name"
+            register={register("room", { required: true })}
+            error={errors.room ? "Group Name is Required!" : ""}
+          />
+
           <button
             type="submit"
-            className="mt-3 w-full bg-primaryLight hover:bg-primary text-white py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            disabled={Object.keys(errors).length > 0}
+            className={`mt-3 w-full bg-primaryLight ${
+              Object.keys(errors).length > 0
+                ? "cursor-not-allowed"
+                : "cursor-pointer"
+            } hover:bg-primary text-white py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-60`}
           >
             Start chatting
           </button>
