@@ -15,7 +15,7 @@ const Chat: React.FC = () => {
   const [roomMessages, setRoomMessages] = useState<any[]>([]);
   const params = useSearchParams();
   const inputRef = useRef<HTMLInputElement | null>(null);
-
+  const router = useRouter();
   const room = params.get("room");
   const dbId = process.env.NEXT_PUBLIC_DATABASE_ID ?? "";
   const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID ?? "";
@@ -81,11 +81,17 @@ const Chat: React.FC = () => {
           message,
           name: session.name,
           room: roomId,
+          id: roomId,
         }
       );
-      roomId && getAllMessagesForRoom(roomId);
+      // roomId && getAllMessagesForRoom(roomId);
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const leaveRoomClickHandler = () => {
+    account.deleteSession("current");
+    router.push("/login");
   };
 
   return (
@@ -96,7 +102,12 @@ const Chat: React.FC = () => {
             {" "}
             Let&apos;s chat{" "}
           </h2>
-          <button className=" text-sm text-[#a5b6f5]">Leave Room</button>
+          <button
+            onClick={leaveRoomClickHandler}
+            className=" text-sm text-[#a5b6f5]"
+          >
+            Leave Room
+          </button>
         </div>
         <div className="flex flex-col h-[83vh] gap-1 px-2 mt-1.5">
           <div
