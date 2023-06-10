@@ -1,13 +1,5 @@
+import { InputFieldProps } from "@components/types";
 import React from "react";
-import { UseFormRegisterReturn } from "react-hook-form";
-
-interface InputFieldProps {
-  id: string;
-  label: string;
-  placeholder: string;
-  register: UseFormRegisterReturn<string>;
-  error?: String;
-}
 
 const InputField: React.FC<InputFieldProps> = ({
   id,
