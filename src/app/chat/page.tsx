@@ -2,15 +2,17 @@
 
 import { account, client, databases } from "../api";
 import { IoMdSend } from "react-icons/io";
+import { BiLogOutCircle } from "react-icons/bi";
+import { BsPeopleFill } from "react-icons/bs";
+
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Query } from "appwrite";
 import { getTimeFromTimestamp } from "@components/utils";
 import { IMessage } from "@components/types";
-
-type messageForm = {
-  message: string;
-};
+import MoreButton from "@components/components/MoreButton";
+import MenuItem from "@components/components/MenuItem";
+import MessageCard from "@components/components/MessageCard";
 
 const Chat: React.FC = () => {
   const [roomMessages, setRoomMessages] = useState<IMessage[]>([]);
@@ -99,6 +101,10 @@ const Chat: React.FC = () => {
     router.push("/login");
   };
 
+  function getInviteLink() {
+    console.log("invite link");
+  }
+
   return (
     <div className="flex justify-center flex-col gap-8 items-center h-screen bg-primary  py-1 ">
       <div className=" flex flex-col h-full min-w-[350px]  relative  bg-slate-200 rounded max-w-[600px] ">
@@ -107,12 +113,18 @@ const Chat: React.FC = () => {
             {" "}
             Let&apos;s chat{" "}
           </h2>
-          <button
-            onClick={leaveRoomClickHandler}
-            className=" text-sm text-[#a5b6f5]"
-          >
-            Leave Room
-          </button>
+          <MoreButton>
+            <MenuItem
+              text="Logout"
+              icon={<BiLogOutCircle />}
+              onClick={leaveRoomClickHandler}
+            />
+            <MenuItem
+              icon={<BsPeopleFill />}
+              text="Get Invite Link"
+              onClick={getInviteLink}
+            />
+          </MoreButton>
         </div>
         <div className="flex flex-col h-[83vh] gap-1 px-2 mt-1.5">
           <div
@@ -121,18 +133,12 @@ const Chat: React.FC = () => {
           >
             {roomMessages.map(({ user_name, message, $createdAt, $id }) => {
               return (
-                <div
+                <MessageCard
+                  createdAt={$createdAt}
+                  message={message}
+                  userName={user_name}
                   key={$id}
-                  className="flex flex-col w-fit max-w-[256px]  gap-[2px] relative rounded-md px-3 pt-1.5 pb-4  bg-white "
-                >
-                  <p className=" text-secondaryTighter text-xs ">{user_name}</p>
-                  <p className="text-secondaryTightest text-sm break-words">
-                    {message}
-                  </p>
-                  <p className=" absolute text-secondaryTight text-xs right-1 bottom-0 ">
-                    {getTimeFromTimestamp($createdAt)}
-                  </p>
-                </div>
+                />
               );
             })}
           </div>
