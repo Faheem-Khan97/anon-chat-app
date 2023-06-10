@@ -6,28 +6,29 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Query } from "appwrite";
 import { getTimeFromTimestamp } from "@components/utils";
+import { IMessage } from "@components/types";
 
 type messageForm = {
   message: string;
 };
 
 const Chat: React.FC = () => {
-  const [roomMessages, setRoomMessages] = useState<any[]>([]);
+  const [roomMessages, setRoomMessages] = useState<IMessage[]>([]);
   const params = useSearchParams();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const room = params.get("room");
   const dbId = process.env.NEXT_PUBLIC_DATABASE_ID ?? "";
-  const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID ?? "";
+  const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_MESSAGE ?? "";
   const roomId: String | undefined = Array.isArray(room) ? room[0] : room;
 
   const getAllMessagesForRoom = useCallback(
     async (roomId: String) => {
       const { documents } = await databases.listDocuments(dbId, collectionId, [
-        Query.equal("room", [`${roomId}`]),
+        Query.equal("group_id", [`${roomId}`]),
         Query.orderDesc("$createdAt"),
       ]);
-      setRoomMessages(documents);
+      setRoomMessages(documents as unknown as IMessage[]);
     },
     [dbId, collectionId]
   );
@@ -42,15 +43,19 @@ const Chat: React.FC = () => {
   useEffect(() => {
     const unsubscribe = client.subscribe(
       [
-        `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID_MESSAGE}.documents`,
       ],
       (data) => {
         if (
           data.events.includes(
-            `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID}.documents.*.create`
+            `databases.${process.env.NEXT_PUBLIC_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_COLLECTION_ID_MESSAGE}.documents.*.create`
           )
         )
-          setRoomMessages((messages) => [data.payload, ...messages]);
+          console.log(data.payload);
+        const newMessage = data.payload as IMessage;
+        if (newMessage.group_id == roomId) {
+          setRoomMessages((messages) => [newMessage, ...messages]);
+        }
       }
     );
 
@@ -79,9 +84,9 @@ const Chat: React.FC = () => {
         "unique()",
         {
           message,
-          name: session.name,
-          room: roomId,
-          id: roomId,
+          user_name: session.name,
+          group_id: roomId,
+          user_id: session.$id,
         }
       );
       // roomId && getAllMessagesForRoom(roomId);
@@ -114,13 +119,13 @@ const Chat: React.FC = () => {
             className=" text-secondary flex flex-col-reverse gap-2  overflow-y-scroll scrollbar-hide   "
             id="scrollableDiv"
           >
-            {roomMessages.map(({ name, message, $createdAt, $id }) => {
+            {roomMessages.map(({ user_name, message, $createdAt, $id }) => {
               return (
                 <div
                   key={$id}
-                  className="flex flex-col w-fit max-w-[256px]  gap-[2px] relative rounded-md px-2 pt-1.5 pb-4  bg-white "
+                  className="flex flex-col w-fit max-w-[256px]  gap-[2px] relative rounded-md px-3 pt-1.5 pb-4  bg-white "
                 >
-                  <p className=" text-secondaryTighter text-xs ">{name}</p>
+                  <p className=" text-secondaryTighter text-xs ">{user_name}</p>
                   <p className="text-secondaryTightest text-sm break-words">
                     {message}
                   </p>
