@@ -7,6 +7,7 @@ const InputField: React.FC<InputFieldProps> = ({
   placeholder,
   register,
   error,
+  defaultValue,
 }) => {
   return (
     <div className="mb-5 relative">
@@ -16,6 +17,7 @@ const InputField: React.FC<InputFieldProps> = ({
       <input
         type="text"
         id={id}
+        defaultValue={defaultValue}
         placeholder={placeholder}
         className="w-full py-2 px-2 border border-secondaryTight rounded focus:outline-none focus:border-secondaryTighter"
         {...register}
