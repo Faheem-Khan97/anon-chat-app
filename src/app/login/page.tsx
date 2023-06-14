@@ -119,7 +119,7 @@ const LoginForm: React.FC = () => {
                 label="Group Name"
                 id="room"
                 placeholder="Enter Group Name"
-                register={register("room", { required: true, maxLength: 16 })}
+                register={register("room", { required: true, maxLength: 24 })}
                 error={errors.room ? "Group Name is not valid!" : ""}
               />
               <div className="mb-4 relative">

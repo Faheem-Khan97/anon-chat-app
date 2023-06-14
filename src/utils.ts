@@ -13,7 +13,9 @@ export function extractInviteLinkParts(inviteLink: string): InviteLinkParts {
   const roomParamValue = queryParams.get("room");
   const spaceIndex = roomParamValue?.indexOf(" ");
   const firstPart =
-    spaceIndex !== -1 ? roomParamValue?.substring(0, spaceIndex) : "";
+    spaceIndex !== -1
+      ? roomParamValue?.substring(0, spaceIndex)
+      : roomParamValue;
   const secondPart =
     spaceIndex && spaceIndex !== -1
       ? roomParamValue?.substring(spaceIndex + 1)?.replaceAll(" ", "+")
