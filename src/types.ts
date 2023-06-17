@@ -18,6 +18,7 @@ export interface IMessage {
   $permissions: string[];
   $collectionId: string;
   $databaseId: string;
+  group_name: string;
 }
 
 export interface InputFieldProps {

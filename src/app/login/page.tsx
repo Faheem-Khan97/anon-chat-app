@@ -79,9 +79,9 @@ const LoginForm: React.FC = () => {
   }
 
   function handleLogout() {
-    setSession(null);
     localStorage.removeItem("chat_session");
     account.deleteSession("current");
+    setSession(null);
     setValue("name", "");
   }
 
@@ -98,6 +98,8 @@ const LoginForm: React.FC = () => {
   function onClosePopup() {
     setisPopupOpen(false);
   }
+
+  console.log({ session });
 
   return (
     <div className="flex justify-center items-center h-screen bg-primary">
