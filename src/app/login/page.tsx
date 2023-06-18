@@ -34,6 +34,9 @@ const LoginForm: React.FC = () => {
   const [isPopupOpen, setisPopupOpen] = useState(false);
 
   useEffect(() => {
+    const sessionString: string | null = localStorage.getItem("chat_session");
+    const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
+    setSession(sessionFromLocalStorage);
     const id = setTimeout(() => {
       setIsPageLoading(false);
     }, 1000);
@@ -41,7 +44,7 @@ const LoginForm: React.FC = () => {
     return () => {
       clearTimeout(id);
     };
-  }, []);
+  }, [setSession]);
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     setIsPageLoading(true);
@@ -87,8 +90,10 @@ const LoginForm: React.FC = () => {
 
   const onInviteSubmit: SubmitHandler<InviteFormInputs> = (data) => {
     if (data.inviteLink) {
+      const url = new URL(data.inviteLink);
+      const roomParamValue = url.searchParams.get("room");
       const { roomId, encryptedString } = extractInviteLinkParts(
-        data.inviteLink
+        roomParamValue ?? ""
       );
 
       router.push(`/chat?room=${roomId}+${encryptedString}`);

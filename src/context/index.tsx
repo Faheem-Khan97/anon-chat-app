@@ -12,11 +12,7 @@ type SessionContextProviderProps = {
 export const SessionContextProvider: React.FC<SessionContextProviderProps> = ({
   children,
 }) => {
-  const sessionString: string | null = localStorage.getItem("chat_session");
-  const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
-  const [session, setSession] = useState<ISession | null>(
-    sessionFromLocalStorage
-  );
+  const [session, setSession] = useState<ISession | null>(null);
 
   return (
     <SessionContext.Provider value={{ session, setSession }}>

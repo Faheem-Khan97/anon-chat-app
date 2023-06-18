@@ -46,14 +46,8 @@ const Chat: React.FC = () => {
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isNamePopUpOpen, setIsNamePopUpOpen] = useState(false);
   const params = useSearchParams();
-  const roomParamValue = params.get("room");
   const [currentRoomDetails, setCurrentRoomDetails] =
     useState<roomDetails | null>(null);
-
-  const currentURL = window.location.href; // Get the current URL
-  const { roomId, encryptedString } = extractInviteLinkParts(
-    roomParamValue ?? ""
-  );
 
   const getAllMessagesForRoom = useCallback(
     async (roomId: String) => {
@@ -67,70 +61,90 @@ const Chat: React.FC = () => {
     [dbId, collectionId]
   );
 
-  const isUserAuthorized = useCallback(async () => {
-    if (roomId) {
-      try {
-        const roomDetails = await fetchRoomDetailsById(roomId);
-        setCurrentRoomDetails(roomDetails as unknown as roomDetails);
-        const decryptedString = AES.decrypt(encryptedString, secret).toString(
-          enc.Utf8
-        );
-        console.log({ decryptedString, session, roomDetails });
-        const isUserAlreadyInGroup = isStringPresentInArray(
-          roomDetails.users,
-          session?.$id
-        );
-        if (isUserAlreadyInGroup || roomDetails.created_by == decryptedString) {
-          setIsUserVerified(true);
-          if (!isUserAlreadyInGroup) {
-            try {
-              const updateRoom = await databases.updateDocument(
-                dbId,
-                collectionIdRoom,
-                roomId,
-                {
-                  users: [...roomDetails.users, session?.$id || session?.$id],
-                }
-              );
-            } catch (error) {
-              toast.error(`Failed to add you to this group`);
-              setTimeout(() => {
-                router.push("/login");
-              }, 2000);
-            }
-          }
-        } else {
-          toast.error(
-            `You are not authorized to enter this group. Get a correct invite link`
+  const isUserAuthorized = useCallback(
+    async (roomId: string, encryptedUserId: string) => {
+      const sessionString: string | null = localStorage.getItem("chat_session");
+      const sessionFromLocalStorage =
+        sessionString && JSON.parse(sessionString);
+      if (roomId) {
+        try {
+          const roomDetails = await fetchRoomDetailsById(roomId);
+          setCurrentRoomDetails(roomDetails as unknown as roomDetails);
+          const decryptedString = AES.decrypt(encryptedUserId, secret).toString(
+            enc.Utf8
           );
-          setTimeout(() => {
-            router.push("/login");
-          }, 2000);
+          console.log({
+            decryptedString,
+            sessionFromLocalStorage,
+            roomDetails,
+          });
+          const isUserAlreadyInGroup = isStringPresentInArray(
+            roomDetails.users,
+            sessionFromLocalStorage?.$id
+          );
+          if (
+            isUserAlreadyInGroup ||
+            roomDetails.created_by == decryptedString
+          ) {
+            setIsUserVerified(true);
+            if (!isUserAlreadyInGroup) {
+              try {
+                const updateRoom = await databases.updateDocument(
+                  dbId,
+                  collectionIdRoom,
+                  roomId,
+                  {
+                    users: [
+                      ...roomDetails.users,
+                      sessionFromLocalStorage?.$id ||
+                        sessionFromLocalStorage?.$id,
+                    ],
+                  }
+                );
+              } catch (error) {
+                toast.error(`Failed to add you to this group`);
+                setTimeout(() => {
+                  router.push("/login");
+                }, 2000);
+              }
+            }
+          } else {
+            toast.error(
+              `You are not authorized to enter this group. Get a correct invite link`
+            );
+            setTimeout(() => {
+              router.push("/login");
+            }, 2000);
+          }
+        } catch (error) {
+          toast.error("Links seems broken, dude. ");
         }
-      } catch (error) {
-        toast.error("Links seems broken, dude. ");
       }
-    }
-  }, [
-    roomId,
-    encryptedString,
-    secret,
-    session,
-    dbId,
-    collectionIdRoom,
-    router,
-  ]);
+    },
+    [secret, dbId, collectionIdRoom, router]
+  );
 
   useEffect(() => {
-    if (!session || !session.name) {
+    const sessionString: string | null = localStorage.getItem("chat_session");
+    const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
+    setSession(sessionFromLocalStorage);
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
+    if (!sessionFromLocalStorage || !sessionFromLocalStorage.name) {
       setIsNamePopUpOpen(true);
     } else {
-      isUserAuthorized();
+      isUserAuthorized(roomId, encryptedString);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
     if (isUserVerified && session && roomId) {
       const unsubscribe = client.subscribe(
         [`databases.${dbId}.collections.${collectionId}.documents`],
@@ -167,10 +181,10 @@ const Chat: React.FC = () => {
   }, [
     isUserVerified,
     session,
-    roomId,
     getAllMessagesForRoom,
     dbId,
     collectionId,
+    params,
   ]);
 
   useEffect(() => {
@@ -182,6 +196,8 @@ const Chat: React.FC = () => {
   }, [roomMessages]);
 
   const onSubmit = async (event: FormEvent) => {
+    const roomParamValue = params.get("room");
+    const { roomId } = extractInviteLinkParts(roomParamValue ?? "");
     event.preventDefault();
     const message = inputRef.current?.value;
     if (message && message.trim()) {
@@ -206,11 +222,13 @@ const Chat: React.FC = () => {
     await account.deleteSession("current");
     localStorage.removeItem("chat_session");
     setSession(null);
-    console.log("push to login");
     router.push("/login");
   };
 
   async function getInviteLink() {
+    const roomParamValue = params.get("room");
+    const { roomId } = extractInviteLinkParts(roomParamValue ?? "");
+    const currentURL = window.location.href;
     const domainName = new URL(currentURL).origin; // Extract the domain name from the URL
     const modifiedURL = `${domainName}/chat?room=${roomId}`; // Append the query parameter to the domain name
     const userId = session?.$id;
@@ -226,6 +244,10 @@ const Chat: React.FC = () => {
   };
 
   const onNameSubmit: SubmitHandler<nameFormInput> = async ({ name }) => {
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
     if (!session) {
       const newSession = await account.createAnonymousSession();
     }
@@ -233,7 +255,7 @@ const Chat: React.FC = () => {
     localStorage.setItem("chat_session", JSON.stringify(nameUpdate));
     setSession(nameUpdate);
     onClosePopup();
-    isUserAuthorized();
+    isUserAuthorized(roomId, encryptedString);
   };
 
   return (
