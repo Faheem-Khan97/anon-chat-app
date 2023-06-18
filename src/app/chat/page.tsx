@@ -17,17 +17,19 @@ import MenuItem from "@components/components/MenuItem";
 import MessageCard from "@components/components/MessageCard";
 import { useSessionContext } from "@components/context";
 import { Loader } from "@components/components/Loader";
-import { extractInviteLinkParts } from "@components/utils";
+import {
+  extractInviteLinkParts,
+  fetchRoomDetailsById,
+  isStringPresentInArray,
+} from "@components/utils";
 import { SubmitHandler, useForm } from "react-hook-form";
 import Popup from "@components/components/Popup";
 import InputField from "@components/components/InputField";
 
 const Chat: React.FC = () => {
   const [roomMessages, setRoomMessages] = useState<IMessage[]>([]);
-  const params = useSearchParams();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
-  const room = params.get("room");
   const dbId = process.env.NEXT_PUBLIC_DATABASE_ID ?? "";
   const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID_MESSAGE ?? "";
   const collectionIdRoom = process.env.NEXT_PUBLIC_COLLECTION_ID ?? "";
@@ -40,15 +42,12 @@ const Chat: React.FC = () => {
 
   const secret = process.env.NEXT_PUBLIC_SECRET ?? "";
   const { session, setSession } = useSessionContext();
-  const sessionString: string | null = localStorage.getItem("chat_session");
-  const localSession = sessionString && JSON.parse(sessionString);
   const [pageLoading, setPageLoading] = useState(true);
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isNamePopUpOpen, setIsNamePopUpOpen] = useState(false);
+  const params = useSearchParams();
   const [currentRoomDetails, setCurrentRoomDetails] =
     useState<roomDetails | null>(null);
-
-  const roomId: String | undefined = Array.isArray(room) ? room[0] : room;
 
   const getAllMessagesForRoom = useCallback(
     async (roomId: String) => {
@@ -62,79 +61,90 @@ const Chat: React.FC = () => {
     [dbId, collectionId]
   );
 
-  useEffect(() => {
-    console.log("chat useeffect");
-    const url = window.location.toString();
-    const { roomId, encryptedString } = extractInviteLinkParts(
-      window.location.href
-    );
-    console.log(roomId, encryptedString);
-    async function getDetailsfromDb() {
-      try {
-        console.log("fetch rooommm");
-        const roomDetails = await databases.getDocument(
-          dbId,
-          collectionIdRoom,
-          roomId
-        );
-        // console.log({ roomDetails });
-        setCurrentRoomDetails(roomDetails as unknown as roomDetails);
-
-        const decryptedString = AES.decrypt(encryptedString, secret).toString(
-          enc.Utf8
-        );
-        console.log({ decryptedString, session, roomDetails });
-        if (roomDetails.users.includes(session?.$id)) {
-          // this means user is already there in the session and have right access
-          setIsUserVerified(true);
-
-          console.log("mde entryyy");
-        } else if (roomDetails.users.includes(decryptedString)) {
-          // user have got the right invite link
-
-          try {
-            let newSession;
-            if (!localSession) {
-              console.log("new session");
-              newSession = await account.createAnonymousSession();
-            }
-            // add this user id to list of users
-            const updateRoom = databases.updateDocument(
-              dbId,
-              collectionIdRoom,
-              roomId,
-              {
-                users: [...roomDetails.users, newSession?.$id || session?.$id],
+  const isUserAuthorized = useCallback(
+    async (roomId: string, encryptedUserId: string) => {
+      const sessionString: string | null = localStorage.getItem("chat_session");
+      const sessionFromLocalStorage =
+        sessionString && JSON.parse(sessionString);
+      if (roomId) {
+        try {
+          const roomDetails = await fetchRoomDetailsById(roomId);
+          setCurrentRoomDetails(roomDetails as unknown as roomDetails);
+          const decryptedString = AES.decrypt(encryptedUserId, secret).toString(
+            enc.Utf8
+          );
+          console.log({
+            decryptedString,
+            sessionFromLocalStorage,
+            roomDetails,
+          });
+          const isUserAlreadyInGroup = isStringPresentInArray(
+            roomDetails.users,
+            sessionFromLocalStorage?.$id
+          );
+          if (
+            isUserAlreadyInGroup ||
+            roomDetails.created_by == decryptedString
+          ) {
+            setIsUserVerified(true);
+            if (!isUserAlreadyInGroup) {
+              try {
+                const updateRoom = await databases.updateDocument(
+                  dbId,
+                  collectionIdRoom,
+                  roomId,
+                  {
+                    users: [
+                      ...roomDetails.users,
+                      sessionFromLocalStorage?.$id ||
+                        sessionFromLocalStorage?.$id,
+                    ],
+                  }
+                );
+              } catch (error) {
+                toast.error(`Failed to add you to this group`);
+                setTimeout(() => {
+                  router.push("/login");
+                }, 2000);
               }
-            );
-            if (!localSession?.name) {
-              // open the name pop up
-              setIsNamePopUpOpen(true);
-            } else {
-              setIsUserVerified(true);
             }
-          } catch (error) {
-            toast.error("Failed to add you to this chat. Please try again.");
-            router.push("/");
+          } else {
+            toast.error(
+              `You are not authorized to enter this group. Get a correct invite link`
+            );
+            setTimeout(() => {
+              router.push("/login");
+            }, 2000);
           }
-        } else {
-          toast.error("You are not authorized to enter this chat");
-          router.push("/login");
+        } catch (error) {
+          toast.error("Links seems broken, dude. ");
         }
-      } catch (error) {
-        toast.error(`Group with ${roomId} not found.`);
-        router.push("/login");
       }
-    }
-    if (roomId) {
-      // fetch room details
-      getDetailsfromDb();
-    }
+    },
+    [secret, dbId, collectionIdRoom, router]
+  );
 
+  useEffect(() => {
+    const sessionString: string | null = localStorage.getItem("chat_session");
+    const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
+    setSession(sessionFromLocalStorage);
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
+    if (!sessionFromLocalStorage || !sessionFromLocalStorage.name) {
+      setIsNamePopUpOpen(true);
+    } else {
+      isUserAuthorized(roomId, encryptedString);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
     if (isUserVerified && session && roomId) {
       const unsubscribe = client.subscribe(
         [`databases.${dbId}.collections.${collectionId}.documents`],
@@ -148,9 +158,17 @@ const Chat: React.FC = () => {
           const newMessage = data.payload as IMessage;
           if (newMessage.group_id == roomId) {
             setRoomMessages((messages) => [newMessage, ...messages]);
+          } else {
+            showMessageNotification(newMessage);
           }
         }
       );
+
+      const showMessageNotification = async (newMessage: IMessage) => {
+        const roomdetails = await fetchRoomDetailsById(newMessage.group_id);
+        if (isStringPresentInArray(roomdetails.users, newMessage.user_id))
+          toast.info(newMessage.message);
+      };
 
       if (roomId && session) {
         getAllMessagesForRoom(roomId);
@@ -163,10 +181,10 @@ const Chat: React.FC = () => {
   }, [
     isUserVerified,
     session,
-    roomId,
     getAllMessagesForRoom,
     dbId,
     collectionId,
+    params,
   ]);
 
   useEffect(() => {
@@ -178,6 +196,8 @@ const Chat: React.FC = () => {
   }, [roomMessages]);
 
   const onSubmit = async (event: FormEvent) => {
+    const roomParamValue = params.get("room");
+    const { roomId } = extractInviteLinkParts(roomParamValue ?? "");
     event.preventDefault();
     const message = inputRef.current?.value;
     if (message && message.trim()) {
@@ -191,21 +211,24 @@ const Chat: React.FC = () => {
           user_name: session?.name,
           group_id: roomId,
           user_id: session?.$id,
+          group_name: currentRoomDetails?.name ?? "",
         }
       );
       if (inputRef.current) inputRef.current.value = "";
     }
   };
 
-  const leaveRoomClickHandler = () => {
-    account.deleteSession("current");
+  const leaveRoomClickHandler = async () => {
+    await account.deleteSession("current");
     localStorage.removeItem("chat_session");
     setSession(null);
     router.push("/login");
   };
 
   async function getInviteLink() {
-    const currentURL = window.location.href; // Get the current URL
+    const roomParamValue = params.get("room");
+    const { roomId } = extractInviteLinkParts(roomParamValue ?? "");
+    const currentURL = window.location.href;
     const domainName = new URL(currentURL).origin; // Extract the domain name from the URL
     const modifiedURL = `${domainName}/chat?room=${roomId}`; // Append the query parameter to the domain name
     const userId = session?.$id;
@@ -221,18 +244,24 @@ const Chat: React.FC = () => {
   };
 
   const onNameSubmit: SubmitHandler<nameFormInput> = async ({ name }) => {
+    const roomParamValue = params.get("room");
+    const { roomId, encryptedString } = extractInviteLinkParts(
+      roomParamValue ?? ""
+    );
+    if (!session) {
+      const newSession = await account.createAnonymousSession();
+    }
     const nameUpdate = await account.updateName(name);
-    setSession(nameUpdate);
     localStorage.setItem("chat_session", JSON.stringify(nameUpdate));
-
+    setSession(nameUpdate);
     onClosePopup();
-    setIsUserVerified(true);
+    isUserAuthorized(roomId, encryptedString);
   };
 
   return (
     <div className="flex justify-center flex-col items-center h-screen bg-primary  py-1 ">
       {!pageLoading ? (
-        <div className=" flex flex-col h-full min-w-[98%] sm:min-w-[80%] md:min-w-[50%] relative  bg-slate-200 rounded-md max-w-[550px] ">
+        <div className=" flex flex-col min-w-[98%] h-[95%] sm:min-w-[80%] md:min-w-[50%] relative  bg-slate-200 rounded-md max-w-[550px] ">
           <div className=" flex items-center h-[8vh] justify-between rounded-t-md px-2 bg-primaryLight  ">
             <h2 className=" text-xl text-secondaryTighter  ">
               {" "}
@@ -244,11 +273,13 @@ const Chat: React.FC = () => {
                 icon={<BiLogOutCircle />}
                 onClick={leaveRoomClickHandler}
               />
-              <MenuItem
-                icon={<BsPeopleFill />}
-                text="Get Invite Link"
-                onClick={getInviteLink}
-              />
+              {currentRoomDetails?.created_by == session?.$id ? (
+                <MenuItem
+                  icon={<BsPeopleFill />}
+                  text="Get Invite Link"
+                  onClick={getInviteLink}
+                />
+              ) : null}
             </MoreButton>
           </div>
           <div className="flex flex-col h-[83vh] gap-1 px-2 mt-1.5">

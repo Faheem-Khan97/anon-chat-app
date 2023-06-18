@@ -19,7 +19,7 @@ const MoreButton: React.FC<MenuItemsList> = ({ children }) => {
       </button>
       {isOpen && (
         <div
-          className=" flex flex-col absolute right-0 mt-2 p-4 gap-1 w-48 bg-white rounded-md shadow-lg"
+          className=" flex z-10 flex-col absolute right-0 mt-2 p-4 gap-1 w-48 bg-white rounded-md shadow-lg"
           onClick={toggleMenu}
         >
           {/* Add your menu items here */}
