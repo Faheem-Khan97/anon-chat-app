@@ -15,7 +15,6 @@ import { IMessage, nameFormInput, roomDetails } from "@components/types";
 import MoreButton from "@components/components/MoreButton";
 import MenuItem from "@components/components/MenuItem";
 import MessageCard from "@components/components/MessageCard";
-import { useSessionContext } from "@components/context";
 import { Loader } from "@components/components/Loader";
 import {
   extractInviteLinkParts,
@@ -25,6 +24,7 @@ import {
 import { SubmitHandler, useForm } from "react-hook-form";
 import Popup from "@components/components/Popup";
 import InputField from "@components/components/InputField";
+import useSession from "@components/custom-hooks/useUser";
 
 const Chat: React.FC = () => {
   const [roomMessages, setRoomMessages] = useState<IMessage[]>([]);
@@ -41,10 +41,11 @@ const Chat: React.FC = () => {
   } = useForm<nameFormInput>();
 
   const secret = process.env.NEXT_PUBLIC_SECRET ?? "";
-  const { session, setSession } = useSessionContext();
   const [pageLoading, setPageLoading] = useState(true);
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isNamePopUpOpen, setIsNamePopUpOpen] = useState(false);
+  const { loading, setUser, user } = useSession();
+
   const params = useSearchParams();
   const [currentRoomDetails, setCurrentRoomDetails] =
     useState<roomDetails | null>(null);
@@ -63,9 +64,6 @@ const Chat: React.FC = () => {
 
   const isUserAuthorized = useCallback(
     async (roomId: string, encryptedUserId: string) => {
-      const sessionString: string | null = localStorage.getItem("chat_session");
-      const sessionFromLocalStorage =
-        sessionString && JSON.parse(sessionString);
       if (roomId) {
         try {
           const roomDetails = await fetchRoomDetailsById(roomId);
@@ -73,14 +71,9 @@ const Chat: React.FC = () => {
           const decryptedString = AES.decrypt(encryptedUserId, secret).toString(
             enc.Utf8
           );
-          console.log({
-            decryptedString,
-            sessionFromLocalStorage,
-            roomDetails,
-          });
           const isUserAlreadyInGroup = isStringPresentInArray(
             roomDetails.users,
-            sessionFromLocalStorage?.$id
+            user?.$id
           );
           if (
             isUserAlreadyInGroup ||
@@ -94,18 +87,14 @@ const Chat: React.FC = () => {
                   collectionIdRoom,
                   roomId,
                   {
-                    users: [
-                      ...roomDetails.users,
-                      sessionFromLocalStorage?.$id ||
-                        sessionFromLocalStorage?.$id,
-                    ],
+                    users: [...roomDetails.users, user?.$id || user?.$id],
                   }
                 );
               } catch (error) {
                 toast.error(`Failed to add you to this group`);
                 setTimeout(() => {
                   router.push("/login");
-                }, 2000);
+                }, 1000);
               }
             }
           } else {
@@ -118,34 +107,33 @@ const Chat: React.FC = () => {
           }
         } catch (error) {
           toast.error("Links seems broken, dude. ");
+          router.push("/login");
         }
       }
     },
-    [secret, dbId, collectionIdRoom, router]
+    [secret, user?.$id, dbId, collectionIdRoom, router]
   );
 
   useEffect(() => {
-    const sessionString: string | null = localStorage.getItem("chat_session");
-    const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
-    setSession(sessionFromLocalStorage);
-    const roomParamValue = params.get("room");
-    const { roomId, encryptedString } = extractInviteLinkParts(
-      roomParamValue ?? ""
-    );
-    if (!sessionFromLocalStorage || !sessionFromLocalStorage.name) {
-      setIsNamePopUpOpen(true);
-    } else {
-      isUserAuthorized(roomId, encryptedString);
+    if (!loading) {
+      const roomParamValue = params.get("room");
+      const { roomId, encryptedString } = extractInviteLinkParts(
+        roomParamValue ?? ""
+      );
+      if (!user || !user.name) {
+        setIsNamePopUpOpen(true);
+      } else {
+        isUserAuthorized(roomId, encryptedString);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, loading, params, isUserAuthorized]);
 
   useEffect(() => {
     const roomParamValue = params.get("room");
     const { roomId, encryptedString } = extractInviteLinkParts(
       roomParamValue ?? ""
     );
-    if (isUserVerified && session && roomId) {
+    if (isUserVerified && user && roomId) {
       const unsubscribe = client.subscribe(
         [`databases.${dbId}.collections.${collectionId}.documents`],
         (data) => {
@@ -170,7 +158,7 @@ const Chat: React.FC = () => {
           toast.info(newMessage.message);
       };
 
-      if (roomId && session) {
+      if (roomId && user) {
         getAllMessagesForRoom(roomId);
       }
 
@@ -178,14 +166,7 @@ const Chat: React.FC = () => {
         unsubscribe();
       };
     }
-  }, [
-    isUserVerified,
-    session,
-    getAllMessagesForRoom,
-    dbId,
-    collectionId,
-    params,
-  ]);
+  }, [isUserVerified, user, getAllMessagesForRoom, dbId, collectionId, params]);
 
   useEffect(() => {
     const scrollableDiv = document.getElementById("scrollableDiv");
@@ -208,9 +189,9 @@ const Chat: React.FC = () => {
         "unique()",
         {
           message,
-          user_name: session?.name,
+          user_name: user?.name,
           group_id: roomId,
-          user_id: session?.$id,
+          user_id: user?.$id,
           group_name: currentRoomDetails?.name ?? "",
         }
       );
@@ -220,8 +201,7 @@ const Chat: React.FC = () => {
 
   const leaveRoomClickHandler = async () => {
     await account.deleteSession("current");
-    localStorage.removeItem("chat_session");
-    setSession(null);
+    setUser(null);
     router.push("/login");
   };
 
@@ -231,7 +211,7 @@ const Chat: React.FC = () => {
     const currentURL = window.location.href;
     const domainName = new URL(currentURL).origin; // Extract the domain name from the URL
     const modifiedURL = `${domainName}/chat?room=${roomId}`; // Append the query parameter to the domain name
-    const userId = session?.$id;
+    const userId = user?.$id;
     if (!userId) return;
     const encryptedUserId = AES.encrypt(userId, secret).toString();
     const url = `${modifiedURL}+${encryptedUserId}`;
@@ -248,19 +228,18 @@ const Chat: React.FC = () => {
     const { roomId, encryptedString } = extractInviteLinkParts(
       roomParamValue ?? ""
     );
-    if (!session) {
+    if (!user) {
       const newSession = await account.createAnonymousSession();
     }
     const nameUpdate = await account.updateName(name);
-    localStorage.setItem("chat_session", JSON.stringify(nameUpdate));
-    setSession(nameUpdate);
+    setUser(nameUpdate);
     onClosePopup();
     isUserAuthorized(roomId, encryptedString);
   };
 
   return (
     <div className="flex justify-center flex-col items-center h-screen bg-primary  py-1 ">
-      {!pageLoading ? (
+      {!loading ? (
         <div className=" flex flex-col min-w-[98%] h-[95%] sm:min-w-[80%] md:min-w-[50%] relative  bg-slate-200 rounded-md max-w-[550px] ">
           <div className=" flex items-center h-[8vh] justify-between rounded-t-md px-2 bg-primaryLight  ">
             <h2 className=" text-xl text-secondaryTighter  ">
@@ -273,7 +252,7 @@ const Chat: React.FC = () => {
                 icon={<BiLogOutCircle />}
                 onClick={leaveRoomClickHandler}
               />
-              {currentRoomDetails?.created_by == session?.$id ? (
+              {currentRoomDetails?.created_by == user?.$id ? (
                 <MenuItem
                   icon={<BsPeopleFill />}
                   text="Get Invite Link"
