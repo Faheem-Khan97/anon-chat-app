@@ -4,12 +4,13 @@ import { useForm, SubmitHandler } from "react-hook-form";
 import { account, databases } from "../api";
 import { useRouter } from "next/navigation";
 import InputField from "@components/components/InputField";
-import { useSessionContext } from "@components/context";
-import { ISession, InviteFormInputs, LoginFormInputs } from "@components/types";
+import { InviteFormInputs, LoginFormInputs } from "@components/types";
 import MenuItem from "@components/components/MenuItem";
 import { Loader } from "@components/components/Loader";
 import Popup from "@components/components/Popup";
 import { extractInviteLinkParts } from "@components/utils";
+import useSession from "@components/custom-hooks/useUser";
+import { toast } from "react-toastify";
 
 const LoginForm: React.FC = () => {
   const {
@@ -28,64 +29,56 @@ const LoginForm: React.FC = () => {
   const router = useRouter();
   const dbId = process.env.NEXT_PUBLIC_DATABASE_ID ?? "";
   const collectionId = process.env.NEXT_PUBLIC_COLLECTION_ID ?? "";
-
-  const { session, setSession } = useSessionContext();
-  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isCreateUserLoading, setIsCreateUserLoading] = useState(false);
   const [isPopupOpen, setisPopupOpen] = useState(false);
-
-  useEffect(() => {
-    const sessionString: string | null = localStorage.getItem("chat_session");
-    const sessionFromLocalStorage = sessionString && JSON.parse(sessionString);
-    setSession(sessionFromLocalStorage);
-    const id = setTimeout(() => {
-      setIsPageLoading(false);
-    }, 1000);
-
-    return () => {
-      clearTimeout(id);
-    };
-  }, [setSession]);
+  const { loading, setUser, user } = useSession();
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
-    setIsPageLoading(true);
-    const { name, room, description } = data;
-    let tempSession = session;
-    if (!tempSession) {
-      const newSession = await account.createAnonymousSession();
-    }
-    tempSession = await account.updateName(name);
-    localStorage.setItem("chat_session", JSON.stringify(tempSession));
-    setSession(tempSession);
-
-    const { $id } = tempSession ?? {};
-
-    const document = await databases.createDocument(
-      dbId,
-      collectionId,
-      "unique()",
-      {
-        name: room,
-        description: description,
-        created_by: $id,
-        users: [$id],
+    setIsCreateUserLoading(true);
+    try {
+      const { name, room, description } = data;
+      let tempSession = user;
+      if (!tempSession) {
+        await account.createAnonymousSession();
+        tempSession = await account.updateName(name);
+        setUser(tempSession);
       }
-    );
-    router.push(`/chat?room=${document.$id}`);
+      const { $id } = tempSession ?? {};
+      const document = await databases.createDocument(
+        dbId,
+        collectionId,
+        "unique()",
+        {
+          name: room,
+          description: description,
+          created_by: $id,
+          users: [$id],
+        }
+      );
+      router.push(`/chat?room=${document.$id}`);
+    } catch (error) {
+      toast("Falied to create the group");
+    } finally {
+      setIsCreateUserLoading(false);
+    }
   };
 
   function joinClickHandler(event: any) {
     event.stopPropagation();
     event.preventDefault();
-
     console.log("join mee");
     setisPopupOpen(true);
   }
 
-  function handleLogout() {
-    localStorage.removeItem("chat_session");
-    account.deleteSession("current");
-    setSession(null);
-    setValue("name", "");
+  async function handleLogout() {
+    try {
+      await account.deleteSession("current");
+      setUser(null);
+      setValue("name", "");
+    } catch (error) {
+      console.log({ error });
+      toast("Failed to logout");
+    }
   }
 
   const onInviteSubmit: SubmitHandler<InviteFormInputs> = (data) => {
@@ -104,11 +97,9 @@ const LoginForm: React.FC = () => {
     setisPopupOpen(false);
   }
 
-  console.log({ session });
-
   return (
     <div className="flex justify-center items-center h-screen bg-primary">
-      {!isPageLoading ? (
+      {!loading ? (
         <>
           <div className="flex justify-center relative flex-col max-w-md mx-auto min-w-[350px] sm:min-w-[430px] min-h-[500px] items-center px-6 bg-secondary rounded-lg shadow-md">
             <h2 className=" text-2xl  font-bold mb-4">Enter Chat Room</h2>
@@ -120,7 +111,7 @@ const LoginForm: React.FC = () => {
                 placeholder="Enter Your Name "
                 register={register("name", { required: true })}
                 error={errors.name ? "Name is Required!" : ""}
-                defaultValue={session?.name ?? ""}
+                defaultValue={user?.name ?? ""}
               />
               <InputField
                 label="Group Name"
@@ -153,24 +144,22 @@ const LoginForm: React.FC = () => {
                 />
               </div>
               <button
-                disabled={Object.keys(errors).length > 0}
+                disabled={Object.keys(errors).length > 0 || isCreateUserLoading}
                 className={`mt-3 w-full bg-primaryLight ${
                   Object.keys(errors).length > 0
                     ? "cursor-not-allowed"
                     : "cursor-pointer"
                 } hover:bg-primary text-white py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-60`}
               >
-                Create New Group
+                {isCreateUserLoading ? "Creating Group..." : "Create New Group"}
               </button>
             </form>
 
-            {session && (
+            {user && (
               <div className="flex bottom-2 w-full gap-1 items-center ">
                 <p className=" text-sm">
                   You&apos;re logged in as{" "}
-                  <span className=" text-secondaryTighter ">
-                    {session?.name}.
-                  </span>
+                  <span className=" text-secondaryTighter ">{user?.name}.</span>
                 </p>
                 <MenuItem underline onClick={handleLogout} text="Logout" />
               </div>
