@@ -102,7 +102,7 @@ const LoginForm: React.FC = () => {
       {!loading ? (
         <>
           <div className="flex justify-center relative flex-col max-w-md mx-auto min-w-[350px] sm:min-w-[430px] min-h-[500px] items-center px-6 bg-secondary rounded-lg shadow-md">
-            <h2 className=" text-2xl  font-bold mb-4">Enter Chat Room</h2>
+            <h2 className=" text-2xl  font-bold mb-4">Enter Group Chat </h2>
             {/* {process.env.NEXT_PUBLIC_API_ENDPOINT} */}
             <form className="w-full" onSubmit={handleSubmit(onSubmit)}>
               <InputField
