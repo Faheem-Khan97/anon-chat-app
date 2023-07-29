@@ -263,7 +263,7 @@ const Chat: React.FC = () => {
           </div>
           <div className="flex flex-col h-[83vh] gap-1 px-2 mt-1.5">
             <div
-              className=" text-secondary flex flex-col-reverse gap-2  overflow-y-scroll scrollbar-hide   "
+              className=" text-secondary flex flex-col-reverse gap-2  pb-[40px] overflow-y-scroll scrollbar-hide   "
               id="scrollableDiv"
             >
               {roomMessages.map(
@@ -275,6 +275,7 @@ const Chat: React.FC = () => {
                       userName={user_name}
                       key={$id}
                       userId={user_id}
+                      user={user}
                     />
                   );
                 }

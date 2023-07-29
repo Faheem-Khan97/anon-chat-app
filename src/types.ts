@@ -46,6 +46,7 @@ export interface MessageCardProps {
   message: string;
   createdAt: Date;
   userId: string;
+  user: ISession | null;
 }
 
 export interface ISession {

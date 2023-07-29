@@ -1,4 +1,4 @@
-import { useSessionContext } from "@components/context";
+import useSession from "@components/custom-hooks/useUser";
 import { MessageCardProps } from "@components/types";
 import { getTimeFromTimestamp } from "@components/utils";
 import React from "react";
@@ -8,9 +8,10 @@ const MessageCard: React.FC<MessageCardProps> = ({
   message,
   createdAt,
   userId,
+  user,
 }) => {
-  const { session } = useSessionContext();
-  const isSelf = session?.$id == userId;
+  const isSelf = user?.$id == userId;
+  console.log({ user, userId });
   return (
     <div
       className={`flex flex-col w-fit max-w-[90%] min-w-[40%] sm:min-w-[30%] ${
